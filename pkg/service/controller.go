@@ -133,21 +133,35 @@ func (c *ControllerService) ControllerPublishVolume(
 
 //ControllerUnpublishVolume detaches the disk from the VM.
 func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
-	attachment, err := diskAttachmentByVmAndDisk(c.ovirtClient.connection, req.NodeId, req.VolumeId)
-	if err != nil {
-		return nil, err
-	}
-	_, err = c.ovirtClient.connection.SystemService().VmsService().VmService(req.NodeId).
-		DiskAttachmentsService().
-		AttachmentService(attachment.MustId()).
-		Remove().
-		Send()
+	if req.NodeId == "" {
+		klog.Error("Attempting to detach from all nodes, not supported Disk %s", req.VolumeId)
+		return nil, status.Error(codes.Unimplemented, "")
+	} else {
+		klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
+		attachment, err := diskAttachmentByVmAndDisk(c.ovirtClient.connection, req.NodeId, req.VolumeId)
+		if err != nil {
+			//Verify disk exists, if so respond OK
+			diskService := c.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId)
+			_, err := diskService.Get().Send()
+			// if doesn't exists we're done
+			if err != nil {
+				klog.Infof("Disk not found Disk %s", req.VolumeId)
+				return nil, status.Error(codes.NotFound, "")
+			}
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+		_, err = c.ovirtClient.connection.SystemService().VmsService().VmService(req.NodeId).
+			DiskAttachmentsService().
+			AttachmentService(attachment.MustId()).
+			Remove().
+			Send()
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
-	return &csi.ControllerUnpublishVolumeResponse{}, nil
+
 }
 
 //ValidateVolumeCapabilities
