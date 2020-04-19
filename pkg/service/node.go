@@ -69,12 +69,12 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
 
 	targetPath := req.GetTargetPath()
-	if req.GetVolumeCapability().GetMount() != nil {
-		err = os.MkdirAll(targetPath, 0750)
-		if err != nil {
-			return nil, errors.New(err.Error())
-		}
+	err = os.MkdirAll(targetPath, 0750)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
 
+	if req.GetVolumeCapability().GetMount() != nil {
 		fsType := req.VolumeCapability.GetMount().FsType
 		klog.Infof("Mounting devicePath %s, on targetPath: %s with FS type: %s",
 			device, targetPath, fsType)
