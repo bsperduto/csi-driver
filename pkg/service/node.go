@@ -69,26 +69,30 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
 
 	targetPath := req.GetTargetPath()
-	fsType := ""
 	if req.GetVolumeCapability().GetMount() != nil {
 		err = os.MkdirAll(targetPath, 0750)
 		if err != nil {
 			return nil, errors.New(err.Error())
 		}
 
-		fsType = req.VolumeCapability.GetMount().FsType
+		fsType := req.VolumeCapability.GetMount().FsType
+		klog.Infof("Mounting devicePath %s, on targetPath: %s with FS type: %s",
+			device, targetPath, fsType)
+		mounter := mount.New("")
+		err = mounter.Mount(device, targetPath, fsType, []string{})
+		if err != nil {
+			klog.Errorf("Failed mounting %v", err)
+			return nil, err
+		}
 	} else {
-		//Block devices are mounted using bind
-		fsType = "bind"
-	}
-
-	klog.Infof("Mounting devicePath %s, on targetPath: %s with FS type: %s",
-		device, targetPath, fsType)
-	mounter := mount.New("")
-	err = mounter.Mount(device, targetPath, fsType, []string{})
-	if err != nil {
-		klog.Errorf("Failed mounting %v", err)
-		return nil, err
+		klog.Infof("Mounting devicePath %s, on targetPath: %s bind mount",
+			device, targetPath)
+		mounter := mount.New("")
+		err = mounter.Mount(device, targetPath, "", []string{"bind"})
+		if err != nil {
+			klog.Errorf("Failed mounting %v", err)
+			return nil, err
+		}
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil
