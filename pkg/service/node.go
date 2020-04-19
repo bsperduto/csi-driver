@@ -39,7 +39,10 @@ func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, e
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
-
+	if err == nil && req.GetVolumeCapability().GetBlock() != nil {
+		//No staging necessary for block device
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
 	if err != nil {
@@ -66,12 +69,19 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
 
 	targetPath := req.GetTargetPath()
-	err = os.MkdirAll(targetPath, 0750)
-	if err != nil {
-		return nil, errors.New(err.Error())
+	fsType := ""
+	if req.GetVolumeCapability().GetMount() != nil {
+		err = os.MkdirAll(targetPath, 0750)
+		if err != nil {
+			return nil, errors.New(err.Error())
+		}
+
+		fsType = req.VolumeCapability.GetMount().FsType
+	} else {
+		//Block devices are mounted using bind
+		fsType = "bind"
 	}
 
-	fsType := req.VolumeCapability.GetMount().FsType
 	klog.Infof("Mounting devicePath %s, on targetPath: %s with FS type: %s",
 		device, targetPath, fsType)
 	mounter := mount.New("")
