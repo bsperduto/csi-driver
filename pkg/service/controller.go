@@ -134,7 +134,7 @@ func (c *ControllerService) ControllerPublishVolume(
 //ControllerUnpublishVolume detaches the disk from the VM.
 func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	if req.NodeId == "" {
-		klog.Error("Attempting to detach from all nodes, not supported Disk %s", req.VolumeId)
+		klog.Errorf("Attempting to detach from all nodes, not supported Disk %s", req.VolumeId)
 		return nil, status.Error(codes.Unimplemented, "")
 	} else {
 		klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
