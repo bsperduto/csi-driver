@@ -140,12 +140,14 @@ func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *cs
 		klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
 		attachment, err := diskAttachmentByVmAndDisk(c.ovirtClient.connection, req.NodeId, req.VolumeId)
 		if err != nil {
+			klog.Infof("Attachment error %s", err)
 			//Verify disk exists, if so respond OK
 			diskService := c.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId)
 			_, err := diskService.Get().Send()
 			// if doesn't exists we're done
 			if err != nil {
 				klog.Infof("Disk not found Disk %s", req.VolumeId)
+				klog.Infof("Debug %s", err)
 				return nil, status.Error(codes.NotFound, "")
 			}
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
