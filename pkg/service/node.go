@@ -40,7 +40,19 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
 	if err == nil && req.GetVolumeCapability().GetBlock() != nil {
-		//No staging necessary for block device
+		file, err := os.Create(req.GetStagingTargetPath() + "/" + req.GetVolumeId())
+		if err != nil {
+			return nil, errors.New(err.Error())
+		}
+		file.Close()
+		klog.Infof("Mounting devicePath %s, on targetPath: %s bind mount",
+			device, req.GetStagingTargetPath()+"/"+req.GetVolumeId())
+		mounter := mount.New("")
+		err = mounter.Mount(device, req.GetStagingTargetPath()+"/"+req.GetVolumeId(), "", []string{"bind"})
+		if err != nil {
+			klog.Errorf("Failed mounting %v", err)
+			return nil, err
+		}
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 	// is there a filesystem on this device?
